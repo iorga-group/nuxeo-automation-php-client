@@ -14,9 +14,12 @@
  *
  * Contributors:
  *     Gallouin Arthur
+ *     Anthony OGIER
+ *     David JONCOUR
  */
 
 require_once('NuxeoAutomationUtilities.php');
+require_once('NuxeoAutomationInterceptors.php');
 
 /**
  * phpAutomationClient class
@@ -28,10 +31,15 @@ require_once('NuxeoAutomationUtilities.php');
 class NuxeoPhpAutomationClient {
     private $url;
     private $session;
+	private $interceptor;
 
     public function NuxeoPhpAutomationClient($url = 'http://localhost:8080/nuxeo/site/automation') {
         $this->url = $url;
     }
+
+	public function setInterceptor($interceptor) {
+		$this->interceptor = $interceptor;
+	}
 
     /**
      * getSession function
@@ -44,7 +52,7 @@ class NuxeoPhpAutomationClient {
      */
     public function getSession($username = 'Administrator', $password = 'Administrator') {
         $this->session = $username . ":" . $password;
-        $session = new NuxeoSession($this->url, $this->session);
+        $session = new NuxeoSession($this->url, $this->session, $this->interceptor);
         return $session;
     }
 }
@@ -61,16 +69,26 @@ class NuxeoSession {
     private $urlLoggedIn;
     private $headers;
     private $requestContent;
+    private $interceptor;
 
-    public function NuxeoSession($url, $session, $headers = "Content-Type: application/json+nxrequest") {
+    public function NuxeoSession($url, $session, $headers = "Content-Type: application/json+nxrequest", $interceptor = null) {
         $this->urlLoggedIn = str_replace("http://", "", $url);
-        if (strpos($url, 'https') !== false) {
-            $this->urlLoggedIn = "https://" . $session . "@" . $this->urlLoggedIn;
-        } elseif (strpos($url, 'http') !== false) {
-            $this->urlLoggedIn = "http://" . $session . "@" . $this->urlLoggedIn;
-        } else {
-            throw Exception;
-        }
+
+		if (!empty($session)) {
+		    if (strpos($url, 'https') !== false) {
+		        $this->urlLoggedIn = "https://" . $session . "@" . $this->urlLoggedIn;
+		    } elseif (strpos($url, 'http') !== false) {
+		        $this->urlLoggedIn = "http://" . $session . "@" . $this->urlLoggedIn;
+		    } else {
+		        throw Exception;
+		    }
+		} else {
+			if (empty($interceptor)) {
+				throw Exception;
+			} else {
+				$this->interceptor = $interceptor;
+			}
+		}
         $this->headers = $headers;
     }
 
@@ -98,12 +116,12 @@ class NuxeoSession {
  */
 class NuxeoDocument {
 
-    Private $object;
-    Private $properties;
+    private $object;
+    private $properties;
 
-    Public function NuxeoDocument($newDocument) {
+    public function NuxeoDocument($newDocument) {
         $this->object = $newDocument;
-        if (array_key_exists('properties', $this->object))
+        if (is_array($this->object) && array_key_exists('properties', $this->object))
             $this->properties = $this->object['properties'];
         else
             $this->properties = null;

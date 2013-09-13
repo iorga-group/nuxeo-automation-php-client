@@ -33,17 +33,19 @@ class NuxeoRequest {
     private $HEADER_NX_SCHEMAS;
     private $blobList;
     private $X_NXVoidOperation;
+    private $interceptor;
 
 
-    public function NuxeoRequest($url, $headers = "Content-Type:application/json+nxrequest", $requestId) {
+    public function NuxeoRequest($url, $headers = "Content-Type:application/json+nxrequest", $requestId, $interceptor = null) {
         $this->url = $url . "/" . $requestId;
         $this->headers = $headers;
         $this->finalRequest = '{}';
         $this->method = 'POST';
         $this->iterationNumber = 0;
-        $this->HEADER_NX_SCHEMAS = 'X-NXDocumentProperties:';
+        $this->HEADER_NX_SCHEMAS = 'X-NXDocumentProperties';
         $this->blobList = null;
         $this->X_NXVoidOperation = 'X-NXVoidOperation: true';
+        $this->interceptor = $interceptor;
     }
 
     /**
@@ -69,7 +71,12 @@ class NuxeoRequest {
      * @author     Arthur GALLOUIN for NUXEO agallouin@nuxeo.com
      */
     public function setSchema($schema = '*') {
-        $this->headers = array($this->headers, $this->HEADER_NX_SCHEMAS . $schema);
+        $this->addHeader($this->HEADER_NX_SCHEMAS, $schema);
+        return $this;
+    }
+
+    public function addHeader($headerName, $headerValue) {
+        $this->headers = array($this->headers, $headerName . ':' . $headerValue);
         return $this;
     }
 
@@ -123,6 +130,7 @@ class NuxeoRequest {
      * @author     Arthur GALLOUIN for NUXEO agallouin@nuxeo.com
      */
     private function multiPart() {
+        $this->callInterceptor();
 
         if (sizeof($this->blobList) > 1 AND !isset($this->finalRequest['params']['xpath']))
             $this->finalRequest['params']['xpath'] = 'files:files';
@@ -197,7 +205,7 @@ class NuxeoRequest {
             echo 'error loading the file';
 
         $futurBlob = stream_get_contents($fp);
-	$temp = end($eadresse);
+    $temp = end($eadresse);
         $this->blobList[] = array($temp, $contentType, print_r($futurBlob, true));
 
         return $this;
@@ -212,6 +220,8 @@ class NuxeoRequest {
      */
     public function sendRequest() {
         if (!$this->blobList) {
+            $this->callInterceptor();
+
             $this->finalRequest = json_encode($this->finalRequest);
             $this->finalRequest = str_replace('\/', '/', $this->finalRequest);
 
@@ -244,6 +254,12 @@ class NuxeoRequest {
         }
         else
             return $this->multiPart();
+    }
+
+    public function callInterceptor() {
+        if (!empty($interceptor)) {
+            $interceptor->intercept($this);
+        }
     }
 
 }
